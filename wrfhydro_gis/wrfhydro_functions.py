@@ -613,7 +613,7 @@ class WRF_Hydro_Grid:
         '''
         xMax = self.x00 + (float(self.ncols)*self.DX)
         yMin = self.y00 + (float(self.nrows)*self.DY)
-        return [self.x00, yMin, xMax, self.y00]
+        return [self.x00, float(yMin), float(xMax), self.y00]
 
     def numpy_to_Raster(self, in_arr, quiet=True, nband=1):
         '''This funciton takes in an input netCDF file, a variable name, the ouput
