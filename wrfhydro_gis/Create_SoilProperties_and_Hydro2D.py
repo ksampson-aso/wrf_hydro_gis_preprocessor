@@ -140,7 +140,10 @@ nameLookupSoil = dict(smcref="REFSMC",
                         vcmx25="VCMX25",
                         mp="MP",
                         hvt="HVT",
-                        mfsno="MFSNO")
+                        mfsno="MFSNO",
+                        AXAJ="AXAJ",
+                        BXAJ="BXAJ",
+                        XXAJ="XXAJ",)
 
 # 3D variables in soil_properties file
 var3d = ["smcref",
