@@ -386,7 +386,7 @@ def main_wrfinput_xarray(geoFile, wrfinFile, lai=8, outNCType='NETCDF4'):
     ncDS = ncDS.rename(mapVars)
 
     # Add new variables based on the addVars list
-    dims = dict(ncDS.dims)
+    dims = dict(ncDS.sizes)
     dims.update({soildim:nsoil})
     newVars = []
     for (varname, units, varDims, missing_value, dtype) in addVars:
@@ -406,7 +406,7 @@ def main_wrfinput_xarray(geoFile, wrfinFile, lai=8, outNCType='NETCDF4'):
     # Drop variables first
     keepVars2 = [mapVars.get(item,item) for item in keepVars] + newVars
     dropVars = [item for item in ncDS.variables if item not in keepVars2]
-    ncDS = ncDS.drop(dropVars)
+    ncDS = ncDS.drop_vars(dropVars)
 
     # Add global attributes
     ncDS.attrs['Source_Software'] = 'WRF-Hydro {0} script (Python).'.format(sys.argv[0])
