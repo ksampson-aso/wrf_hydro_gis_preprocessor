@@ -44,7 +44,6 @@ try:
         import gdalconst
 except:
     sys.exit('ERROR: cannot find GDAL/OGR modules')
-from gdalconst import *
 
 # Import whitebox
 #from whitebox.WBT.whitebox_tools import WhiteboxTools
@@ -79,6 +78,18 @@ To import and run these functions using python, from a custom script or console:
 # Global Variables - update relevant arguments below.
 #######################################################
 
+# Soil water type value from input GEOGRID SCT_DOM and SCB_DOM variables
+soil_water_val = 14
+
+# Use a search distance threshold for nearest neighbor? Beyond this will use fillsoiltyp value.
+distance_calc = True
+
+# Controls related to the search distance for gap-filling inland soil-water classes
+# Search distance for filling water cell areas over land with nearest non-water
+# neighbor value, in cells. (Cell width is used to determine euclidean distance).
+# Uses GEOGRID DX global attribute for cell width (horzontal/vertical only).
+search_dist = 3
+
 # Soil type to use as a fill value in case conflicts between soil water and land cover water cells:
 # If the script encounters a cell that is classified as land in the land use field (LU_INDEX)
 # but is classified as a water soil type, it will replace the soil type with the value you
@@ -87,13 +98,6 @@ To import and run these functions using python, from a custom script or console:
 # to see how many of these conflicts there are. If you do this DO NOT RUN THE MODEL WITH THESE
 # BAD VALUES. Instead, fix them manually with a neighbor fill or similar fill algorithm.
 fillsoiltyp = 3
-
-# Soil water type value from input GEOGRID SCT_DOM and SCB_DOM variables
-soil_water_val = 14
-
-# Search distance for filling water cell areas over land with nearest non-water
-# neighbor value, in cells. (Cell width is used to determine euclidean distance
-search_dist = 3
 
 #######################################################
 # Do not update below here.
@@ -104,10 +108,6 @@ outNCType = 'NETCDF4'                                                           
 
 # Use the GeoTiff raster driver for GDAL, which is the only format accepted by Whitebox Tools
 RasterDriver = 'GTiff'
-
-# Controls related to the search distance for gap-filling inland soil-wate classes
-distance_calc = True        # Use a search distance threshold for nearest neighbor?
-distance = 3                # Distance in cell-widths. Uses GEOGRID DX global attribute
 
 # --- Functions --- #
 def is_valid_file(parser, arg):
@@ -174,19 +174,19 @@ def update_geogrid_soils(inNC, outFile, distance_calc=True, outNCType=outNCType)
         build_geogrid_raster(inNC, soil_class_layer, inraster, out_Grid_fmt=RasterDriver)
         assert(os.path.exists(inraster))
         arr, ndv = wrfh.return_raster_array(inraster)
-        wrfh.remove_file(inraster)
 
         # Create a copy
         modRaster = os.path.join(projdir, '{0}_mod.tif'.format(soil_class_layer))
         target_ds = gdal.GetDriverByName(RasterDriver).CreateCopy(modRaster, gdal.Open(inraster, gdalconst.GA_ReadOnly))
         target_ds = None
+        wrfh.remove_file(inraster)
 
         # 1) Create a grid with holes of value 0 where SCT_DOM is water (14):
         ds = gdal.Open(modRaster, gdalconst.GA_Update)                          # Open for writing
         band = ds.GetRasterBand(1)
         arr_mod = band.ReadAsArray()
-        arr_mod[arr_mod==soil_water_val] = 0                    # Set all water soil type cells to 0
-        band.WriteArray(arr_mod)                            # Write the array to the disk
+        arr_mod[arr_mod==soil_water_val] = 0            # Set all water soil type cells to 0
+        band.WriteArray(arr_mod)                        # Write the array to the disk
         stats = band.GetStatistics(0,1)                 # Calculate statistics
         ds = band = stats = arr_mod = None
 
@@ -199,7 +199,7 @@ def update_geogrid_soils(inNC, outFile, distance_calc=True, outNCType=outNCType)
         # 3) If requested, create a euclidean distance raster to that we can apply a
         # limit to the gap-filling process
         if distance_calc:
-            cell_dist = distance * float(ncDS.DX)
+            cell_dist = search_dist * float(ncDS.DX)
             print('  Using cell distance of {0} map units'.format(cell_dist))
 
             ED_output = os.path.join(projdir, '{0}_ED.tif'.format(soil_class_layer))
@@ -212,7 +212,8 @@ def update_geogrid_soils(inNC, outFile, distance_calc=True, outNCType=outNCType)
         # cell for all inland water classes on the soil category grid
 
         # Fill all gaps with the result from Euclidean Allocation
-        arr[LM_arr==1] = EA_arr[LM_arr==1]
+        #arr[LM_arr==1] = EA_arr[LM_arr==1]
+        arr[numpy.logical_and(LM_arr==1, EA_arr>0)] = EA_arr[numpy.logical_and(LM_arr==1, EA_arr>0)]
 
         # If asking for a distance threshold, fill all other gaps with default value
         if distance_calc:
@@ -235,13 +236,14 @@ def update_geogrid_soils(inNC, outFile, distance_calc=True, outNCType=outNCType)
     shutil.rmtree(projdir)
 
     # Output file to disk
-    encoding = {varname:ncDS[varname].encoding for varname in list(ncDS.variables.keys())}
-    for key, val in encoding.items():
-        val['_FillValue'] = None
+    # encoding = {varname:ncDS[varname].encoding for varname in list(ncDS.variables.keys())}
+    # for key, val in encoding.items():
+    #     val['_FillValue'] = None
+    # print(encoding)
 
-    ncDS.to_netcdf(outFile, mode='w', format=outNCType, encoding=encoding)
+    ncDS.to_netcdf(outFile, mode='w', format=outNCType) #, encoding=encoding)
     ncDS.close()
-    del encoding, ncDS
+    del ncDS #, encoding
     print('Output netCDF file: {0}'.format(outFile))
     print('Process completed in {0:3.2f} seconds.'.format(time.time()-tic))
 
@@ -271,9 +273,6 @@ if __name__ == '__main__':
     args.in_Geogrid = os.path.abspath(args.in_Geogrid)
     args.out_geogrid = os.path.abspath(args.out_geogrid)
 
-    ##    in_Geogrid = r"C:\Users\ksampson\Desktop\NWM\NWM_Alaska\WPS\WPS_Output\geo_em.d02.20210419_nlcd2016_snow.nc"
-    ##    out_geogrid = r"C:\Users\ksampson\Desktop\NWM\NWM_Alaska\WPS\WPS_Output\geo_em.d02.20210419_nlcd2016_snow_modifiedSoils.nc"
-    ##    update_geogrid_soils(in_Geogrid, out_geogrid, outNCType=outNCType, distance_calc=True)
-
+    # Run main function
     update_geogrid_soils(args.in_Geogrid, args.out_geogrid, outNCType=outNCType, distance_calc=True)
     print('  Process completed in {0:3.2f} seconds'.format(time.time()-tic))
