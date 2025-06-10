@@ -68,6 +68,7 @@ def examine_outputs(out_folder, dellist=[], skipfiles=[]):
     # Iterate through unzipped files and copy to output directory as necessary
     for dirpath, dirnames, filenames in os.walk(out_folder):
         for file in filenames:
+            print(f'{file}')
             infile = os.path.join(dirpath, file)
 
             # Copy skipped files over to new directory
@@ -90,13 +91,6 @@ def examine_outputs(out_folder, dellist=[], skipfiles=[]):
                 if LooseVersion(netCDF4.__version__) > LooseVersion('1.4.0'):
                     rootgrp.set_auto_mask(False)                                # Change masked arrays to old default (numpy arrays always returned)
 
-                # Old method which will crash if the CRS variable is not present
-                ##                if 'esri_pe_string' in rootgrp.variables[crsVar].__dict__:
-                ##                    PE_string = rootgrp.variables[crsVar].esri_pe_string
-                ##                elif 'spatial_ref' in rootgrp.variables[crsVar].__dict__:
-                ##                    PE_string = rootgrp.variables[crsVar].spatial_ref
-                ##                GT = rootgrp.variables[crsVar].GeoTransform.split(" ")[0:6]
-
                 # Added 4/14/2021 to allow for the absence of a coordinate system variable.
                 if crsVar in rootgrp.variables:
                     crsNCVar = rootgrp.variables[crsVar]
@@ -106,7 +100,10 @@ def examine_outputs(out_folder, dellist=[], skipfiles=[]):
                     elif 'spatial_ref' in crsNCVar.__dict__:
                         PE_string = crsNCVar.spatial_ref
                     if 'GeoTransform' in crsNCVar.__dict__:
-                        GT = crsNCVar.GeoTransform.split(" ")[0:6]
+                        if type(crsNCVar.GeoTransform) == numpy.ndarray:
+                            GT = crsNCVar.GeoTransform.tolist()
+                        else:
+                            GT = crsNCVar.GeoTransform.split(" ")[0:6]
                     else:
                         print('  No GeoTransform attribute found. Setting to default.')
                         GT = [0, 1, 0, 0, 0, -1]
