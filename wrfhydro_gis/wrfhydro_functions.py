@@ -218,7 +218,7 @@ projdict = {1: 'Lambert Conformal Conic',
 CF_projdict = {1: "lambert_conformal_conic",
                 2: "polar_stereographic",
                 3: "mercator",
-                6: "latitude_longitude",
+                6: "equirectangular",
                 0: "crs"}
 
 # Unify all coordinate system variables to have the same name ("crs"). Ths makes it easier for WRF-Hydro output routines to identify the variable and transpose it to output files
@@ -1432,14 +1432,22 @@ def add_CRS_var(rootgrp, sr, map_pro, CoordSysVarName, grid_mapping, PE_string, 
 
     elif map_pro == 6:
         # Cylindrical Equidistant or rotated pole
-
         #http://cfconventions.org/Data/cf-conventions/cf-conventions-1.6/build/cf-conventions.html#appendix-grid-mappings
-        # Required transform variables
-        #proj_var.grid_mapping_name = "latitude_longitude"                      # or "rotated_latitude_longitude"
 
-        #print('        Cylindrical Equidistant projection not supported.')
-        #raise SystemExit
-        pass                                                                    # No extra parameters needed for latitude_longitude
+        # Added 6/10/2025 by KMS to accomodate cylindrical equidistant projections
+        del proj_var.transform_name
+        del proj_var.esri_pe_string
+        proj_var._CoordinateAxes = 'y x'                                            # Coordinate systems variables always have a _CoordinateAxes attribute, optional for dealing with implicit coordinate systems
+        proj_var.false_easting = sr.GetProjParm("false_easting")                # Double  Always in the units of the x and y projection coordinates
+        proj_var.false_northing = sr.GetProjParm("false_northing")              # Double  Always in the units of the x and y projection coordinates
+        proj_var.longitude_of_central_meridian = sr.GetProjParm("central_meridian")     # Double. Necessary in combination with longitude_of_prime_meridian?
+        proj_var.latitude_of_projection_origin = sr.GetProjParm("latitude_of_origin")   # Double
+        proj_var.standard_parallel = sr.GetProjParm("standard_parallel_1")              # Double
+        proj_var.longitude_of_prime_meridian = 0.
+        proj_var.semi_major_axis = sphere_radius                                
+        proj_var.inverse_flattening = float(0)
+        proj_var.crs_wkt = PE_string
+        proj_var.spatial_ref = PE_string      
 
     # Added 10/13/2017 by KMS to accomodate alternate datums
     elif map_pro == 0:
@@ -1466,7 +1474,7 @@ def create_CF_NetCDF(grid_obj, rootgrp, projdir, addLatLon=False, notes='', addV
 
     # Build Esri WKT Projection string to store in CF netCDF file
     projEsri = grid_obj.proj.Clone()                                            # Copy the SRS
-    projEsri.MorphToESRI()                                                      # Alter the projection to Esri's representation of a coordinate system
+    #projEsri.MorphToESRI()                                                      # Alter the projection to Esri's representation of a coordinate system
     PE_string = projEsri.ExportToWkt().replace("'", '"')                        # INVESTIGATE - this somehow may provide better compatability with Esri products?
     print('        Esri PE String: {0}'.format(PE_string))
 
@@ -2450,7 +2458,7 @@ def build_RouteLink(RoutingNC, order, From_To, NodeElev, NodesLL, NodesXY, Lengt
         sr = osr.SpatialReference()                                             # Build a spatial reference object
         sr.ImportFromEPSG(pointSR)                                              # Define using EPSG code specified in header
         projEsri = sr.Clone()                                                   # Copy the SRS
-        projEsri.MorphToESRI()                                                  # Alter the projection to Esri's representation of a coordinate system
+        #projEsri.MorphToESRI()                                                  # Alter the projection to Esri's representation of a coordinate system
         PE_string = projEsri.ExportToWkt().replace("'", '"')                    # INVESTIGATE - this somehow may provide better compatability with Esri products?
         grid_mapping = crsVar
         rootgrp = add_CRS_var(rootgrp, sr, 0, grid_mapping, 'latitude_longitude', PE_string)
@@ -2914,7 +2922,7 @@ def build_LAKEPARM(LakeNC, min_elevs, areas, max_elevs, OrificEs, cen_lats, cen_
         sr = osr.SpatialReference()                                             # Build empty spatial reference object
         sr.ImportFromProj4(wgs84_proj4)                                    # Imprort from proj4 to avoid EPSG errors (4326)
         projEsri = sr.Clone()
-        projEsri.MorphToESRI()                                                      # Alter the projection to Esri's representation of a coordinate system
+        #projEsri.MorphToESRI()                                                      # Alter the projection to Esri's representation of a coordinate system
         PE_string = projEsri.ExportToWkt().replace("'", '"')                        # INVESTIGATE - this somehow may provide better compatability with Esri products?
         grid_mapping = crsVar
         rootgrp = add_CRS_var(rootgrp, sr, 0, grid_mapping, 'latitude_longitude', PE_string)
